@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+google-cloud-aiplatform
+google-cloud-storage
+python-multipart
+PyYAML
+google-cloud-aiplatform[pipelines]
+kfp
+python-dotenv
+python-jose
