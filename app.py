@@ -12,7 +12,7 @@ BUCKET_NAME = os.getenv("BUCKET_NAME")
 PIPELINE_TEMPLATE_PATH = os.getenv("PIPELINE_TEMPLATE_PATH")
 
 # === UI Header ===
-st.image("logo.png", use_column_width=True)
+st.image("logo.png", use_container_width=True)
 st.markdown("<h2 style='text-align: center; color: #00A39D;'>NAPEx – NCMS AI Pipeline Experiment</h2>", unsafe_allow_html=True)
 st.write("Upload customer cashflow `.csv` files to trigger AutoML forecasting pipelines.")
 
