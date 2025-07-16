@@ -3,6 +3,14 @@ from google.cloud import storage, aiplatform
 import os
 import tempfile
 from dotenv import load_dotenv
+import json
+
+service_account_info = st.secrets["gcp"]
+
+with open("temp_service_account.json", "w") as f:
+    json.dump(dict(service_account_info), f)
+
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = "temp_service_account.json"
 
 # === Load environment variables ===
 load_dotenv()
