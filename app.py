@@ -1,26 +1,21 @@
 import streamlit as st
 from google.cloud import storage, aiplatform
+from google.oauth2 import service_account
 import os
 import tempfile
-from dotenv import load_dotenv
-import json
 
-service_account_info = st.secrets["gcp"]
-
-with open("temp_service_account.json", "w") as f:
-    json.dump(dict(service_account_info), f)
-
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = "temp_service_account.json"
+# Create credentials object from secrets
+credentials = service_account.Credentials.from_service_account_info(st.secrets["gcp"])
 
 # === Load environment variables ===
-load_dotenv()
-PROJECT_ID = os.getenv("PROJECT_ID")
-REGION = os.getenv("REGION")
-BUCKET_NAME = os.getenv("BUCKET_NAME")
-PIPELINE_TEMPLATE_PATH = os.getenv("PIPELINE_TEMPLATE_PATH")
+PROJECT_ID = st.secrets["app_config"]["PROJECT_ID"]
+REGION = st.secrets["app_config"]["REGION"]
+BUCKET_NAME = st.secrets["app_config"]["BUCKET_NAME"]
+PIPELINE_TEMPLATE_PATH = st.secrets["app_config"]["PIPELINE_TEMPLATE_PATH"]
+SERVICE_ACCOUNT = st.secrets["app_config"]["SERVICE_ACCOUNT"]
 
 # === UI Header ===
-st.image("logo.png", use_container_width=True)
+st.image("logo.png")
 st.markdown("<h2 style='text-align: center; color: #00A39D;'>NAPEx – NCMS AI Pipeline Experiment</h2>", unsafe_allow_html=True)
 st.write("Upload customer cashflow `.csv` files to trigger AutoML forecasting pipelines.")
 
@@ -30,9 +25,9 @@ uploaded_files = st.file_uploader("Upload one or more .csv files", type="csv", a
 # === Trigger pipelines ===
 if st.button("🚀 Trigger AutoML Pipelines") and uploaded_files:
     with st.spinner("Processing and triggering pipelines..."):
-        storage_client = storage.Client()
+        storage_client = storage.Client(credentials=credentials)
         bucket = storage_client.bucket(BUCKET_NAME)
-        aiplatform.init(project=PROJECT_ID, location=REGION)
+        aiplatform.init(project=PROJECT_ID, location=REGION, credentials=credentials)
 
         for uploaded_file in uploaded_files:
             filename = uploaded_file.name
@@ -51,7 +46,7 @@ if st.button("🚀 Trigger AutoML Pipelines") and uploaded_files:
             os.remove(temp_file.name)
 
             # Run pipeline
-            job_name = f"automl-cashflow-{customer_name}"
+            job_name = f"pipeline-automl-cashflow-{customer_name}"
             pipeline_job = aiplatform.PipelineJob(
                 display_name=job_name,
                 template_path=PIPELINE_TEMPLATE_PATH,
@@ -62,9 +57,12 @@ if st.button("🚀 Trigger AutoML Pipelines") and uploaded_files:
                     "customer_name": customer_name,
                     "bucket_name": BUCKET_NAME
                 },
-                enable_caching=False,
+                enable_caching=False
             )
-            pipeline_job.run(sync=False)
+            pipeline_job.run(
+                service_account = SERVICE_ACCOUNT,
+                sync=False
+            )
 
             # Show success and monitoring link
             job_id = pipeline_job.job_id

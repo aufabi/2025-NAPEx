@@ -1,4 +1,7 @@
-.env
 .venv
 napex-sa.json
 .streamlit
+temp_service_account.json
+pipeline_template.py
+check.py
+.vscode

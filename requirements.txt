@@ -8,3 +8,5 @@ google-cloud-aiplatform[pipelines]
 kfp
 python-dotenv
 python-jose
+streamlit
+google-auth
