@@ -20,6 +20,7 @@ st.markdown("<h2 style='text-align: center; color: #00A39D;'>NAPEx – NCMS AI P
 st.write("Upload customer cashflow `.csv` files to trigger AutoML forecasting pipelines.")
 
 # === File uploader ===
+training_budget_hours = st.number_input("Training Budget (hours)", min_value=1.0, max_value=100.0, value=1.0, step=0.5)
 uploaded_files = st.file_uploader("Upload one or more .csv files", type="csv", accept_multiple_files=True)
 
 # === Trigger pipelines ===
@@ -55,7 +56,8 @@ if st.button("🚀 Trigger AutoML Pipelines") and uploaded_files:
                     "project": PROJECT_ID,
                     "region": REGION,
                     "customer_name": customer_name,
-                    "bucket_name": BUCKET_NAME
+                    "bucket_name": BUCKET_NAME,
+                    "training_budget_milli_node_hours": int(training_budget_hours * 1000)
                 },
                 enable_caching=False
             )
