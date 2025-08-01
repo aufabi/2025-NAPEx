@@ -3,7 +3,7 @@ from google.cloud import storage, aiplatform
 from google.oauth2 import service_account
 import os
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 import pandas as pd
 
 # Create credentials object from secrets
@@ -25,9 +25,17 @@ st.image("logo.png")
 st.markdown("<h2 style='text-align: center; color: #00A39D;'>NAPEx – NCMS AI Pipeline Experiment</h2>", unsafe_allow_html=True)
 st.write("Upload customer cashflow `.csv` files to trigger AutoML forecasting pipelines.")
 
+# === Pipeline Settings ===
+col1, col2, col3 = st.columns(3)
+with col1:
+    training_budget_hours = st.number_input("Training Budget (hours)", min_value=1.0, max_value=100.0, value=1.0, step=0.5)
+with col2:
+    forecast_horizon = st.number_input("Forecast Horizon (days)", min_value=1, max_value=365, value=180)
+with col3:
+    enable_caching = st.checkbox("Enable Component Caching", value=True, 
+        help="When enabled, successfully completed components will be cached. This allows resuming from failed components.")
+
 # === File uploader ===
-training_budget_hours = st.number_input("Training Budget (hours)", min_value=1.0, max_value=100.0, value=1.0, step=0.5)
-forecast_horizon = st.number_input("Forecast Horizon (days)", min_value=1, max_value=365, value=30)
 uploaded_files = st.file_uploader("Upload one or more .csv files", type="csv", accept_multiple_files=True)
 
 # === Trigger pipelines ===
@@ -43,52 +51,57 @@ if st.button("🚀 Trigger AutoML Pipelines") and uploaded_files:
             filename = uploaded_file.name
             customer_name = os.path.splitext(filename)[0]
 
-            if customer_name in processed_customers:
-                st.warning(f"Pipeline for `{customer_name}` has already been triggered. Skipping.")
-                continue
+            with st.spinner(f"Triggering pipeline for {customer_name}... Please wait."):
+                st.info(f"Processing file: '{filename}' -> Customer Name: '{customer_name}'")
 
-            # Save uploaded file temporarily
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".csv")
-            temp_file.write(uploaded_file.getbuffer())
-            temp_file.close()
+                if customer_name in processed_customers:
+                    st.warning(f"Pipeline for `{customer_name}` has already been triggered. Skipping.")
+                    continue
 
-            # Upload to GCS
-            gcs_blob_path = f"uploads/{filename}"
-            blob = bucket.blob(gcs_blob_path)
-            blob.upload_from_filename(temp_file.name)
-            gcs_uri = f"gs://{BUCKET_NAME}/{gcs_blob_path}"
-            os.remove(temp_file.name)
+                # Save uploaded file temporarily
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".csv")
+                temp_file.write(uploaded_file.getbuffer())
+                temp_file.close()
 
-            # Run pipeline
-            job_name = f"pipeline-automl-cashflow-forecast-{customer_name}-{datetime.utcnow().strftime('%Y%m%d')}"
-            pipeline_job = aiplatform.PipelineJob(
-                display_name=job_name,
-                template_path=PIPELINE_TEMPLATE_PATH,
-                parameter_values={
-                    "gcs_source_uri": gcs_uri,
-                    "project": PROJECT_ID,
-                    "region": REGION,
-                    "customer_name": customer_name,
-                    "bucket_name": BUCKET_NAME,
-                    "training_budget_milli_node_hours": int(training_budget_hours * 1000),
-                    "forecast_horizon": forecast_horizon
-                },
-                enable_caching=False
-            )
-            pipeline_job.run(
-                service_account = SERVICE_ACCOUNT,
-                sync=False
-            )
+                # Upload to GCS
+                gcs_blob_path = f"uploads/{filename}"
+                blob = bucket.blob(gcs_blob_path)
+                blob.upload_from_filename(temp_file.name)
+                gcs_uri = f"gs://{BUCKET_NAME}/{gcs_blob_path}"
+                os.remove(temp_file.name)
 
-            # Show success and monitoring link
-            job_id = pipeline_job.job_id
-            console_link = f"https://console.cloud.google.com/vertex-ai/locations/{REGION}/pipelines/runs/{job_id}?project={PROJECT_ID}"
+                timestamp = datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')
+                job_name = f"pipeline-automl-cashflow-forecast-{customer_name}-{timestamp}"
+                
+                pipeline_job = aiplatform.PipelineJob(
+                    display_name=job_name,
+                    template_path=PIPELINE_TEMPLATE_PATH,
+                    parameter_values={
+                        "gcs_source_uri": gcs_uri,
+                        "project": PROJECT_ID,
+                        "region": REGION,
+                        "customer_name": customer_name,
+                        "bucket_name": BUCKET_NAME,
+                        "training_budget_milli_node_hours": int(training_budget_hours * 1000),
+                        "forecast_horizon": forecast_horizon
+                    },
+                    enable_caching=enable_caching
+                )
+                pipeline_job.run(
+                    service_account = SERVICE_ACCOUNT,
+                    sync=False
+                )
 
-            st.session_state.results.append({
-                "Customer": customer_name,
-                "Status": "✅ Triggered",
-                "Link": console_link
-            })
+                # Show success and monitoring link
+                job_id = pipeline_job.job_id
+                console_link = f"https://console.cloud.google.com/vertex-ai/locations/{REGION}/pipelines/runs/{job_id}?project={PROJECT_ID}"
+
+                st.session_state.results.append({
+                    "Customer": customer_name,
+                    "Status": "✅ Triggered",
+                    "Link": console_link
+                })
+    st.rerun()
 
 if st.session_state.results:
     st.success("Pipeline Trigger History")

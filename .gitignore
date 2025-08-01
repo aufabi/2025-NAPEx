@@ -7,3 +7,6 @@ check.py
 .vscode
 pipeline_automl_cashflow_forecast.json
 pipeline_creator.py
+/testing
+/test_data
+.ipynb_checkpoints/
